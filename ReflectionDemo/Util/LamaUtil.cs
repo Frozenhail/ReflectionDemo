@@ -1,44 +1,93 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Data;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ReflectionDemo.Util
 {
     class LamaUtil
     {
+        /// <summary>
+        /// Fills a Dictionary object based on a given object using Reflection
+        /// </summary>
+        /// <author>Lucas Jones (edited by Miguel van de Laar)</author>
+        /// <source>http://stackoverflow.com/questions/737151/how-to-get-the-list-of-properties-of-a-class</source>
+        /// <param name="atype">Object of any type</param>
+        /// <returns>Datadictionary with attribute names as key and values from parameter object</returns>
         public static Dictionary<string, object> DictionaryFromType(object atype)
         {
             if (atype == null) return new Dictionary<string, object>();
             Type t = atype.GetType();
             PropertyInfo[] props = t.GetProperties();
-            Dictionary<string, object> dict = new Dictionary<string, object>();
+            Dictionary<string, object> dictionary = new Dictionary<string, object>();
             foreach (PropertyInfo prp in props)
             {
-                object value = prp.GetValue(atype, new object[] { });
-                dict.Add(prp.Name, value);
+                TypeCode typeCode = Type.GetTypeCode(prp.PropertyType);
+                // The if-statement below is to avoid complex types
+                // Add any needed classtypes
+                if (typeCode == TypeCode.String || typeCode == TypeCode.Int32 || typeCode == TypeCode.Boolean || typeCode == TypeCode.DateTime || typeCode == TypeCode.Decimal)
+                {
+                    object value = prp.GetValue(atype, new object[] {});
+                    dictionary.Add(prp.Name, value);
+                }
             }
-            return dict;
+            return dictionary;
         }
 
+        /// <summary>
+        /// Updates a given object to reflect changes in values from a DataDictionary object
+        /// </summary>
+        /// <author>Miguel van de Laar</author>
+        /// <param name="atype">The object to be updated</param>
+        /// <param name="dictionary">The Dictionary object containing keyvalues matching attribute names with (new) values</param>
         public static void UpdateTypeFromDictionary(object atype, Dictionary<string, object> dictionary)
         {
             Type t = atype.GetType();
             PropertyInfo[] props = t.GetProperties();
-            foreach (PropertyInfo p in props)
+            foreach (PropertyInfo prp in props)
             {
-                if (dictionary[p.Name] != null)
+                if (dictionary[prp.Name] != null)
                 {
-                    object value = p.GetValue(atype, new object[] { });
-                    if (value != Convert.ChangeType(dictionary[p.Name], p.PropertyType))
+                    object value = prp.GetValue(atype, new object[] { });
+                    if (value != Convert.ChangeType(dictionary[prp.Name], prp.PropertyType)) // Only update if changed
                     {
-                        p.SetValue(atype, Convert.ChangeType(dictionary[p.Name], p.PropertyType), null);
+                        prp.SetValue(atype, Convert.ChangeType(dictionary[prp.Name], prp.PropertyType), null);
                     }
                 }
             }
+        }
 
+        /// <summary>
+        /// Function below makes a DataTable out of an array
+        /// This enables you to make a DataTable out of a set of Entity Framework entities and then bind this to a Data component
+        /// To do this simply link the DataTable to the component, eg  dvComponent.DataSource = GetDataTable(myDataArray);
+        /// And then (IMPORTANT!!!) bind the data, eg                  dvComponent.DataBind();
+        /// </summary>
+        /// <author>Bob Tossaint</author>
+        /// <param name="data">An Array of entity elements, for instance the result of an Entity Framework LINQ query</param>
+        /// <returns>A DataTable filled with the elements from the data Array. Each element in the array is turned into a column in the DataTable</returns>
+        public static DataTable GetDataToTable(Array data)
+        {
+            DataTable dt = new DataTable();
+
+            for (int i = 0; i < data.Length; i++)
+            {
+                Dictionary<string, object> dict = DictionaryFromType(data.GetValue(i));
+                if (i == 0)
+                {
+                    foreach (KeyValuePair<String, object> kvp in dict)
+                    {
+                        dt.Columns.Add(kvp.Key);    // Name columns
+                    }
+                }
+                DataRow dr = dt.NewRow();
+                foreach (KeyValuePair<String, object> kvp in dict)
+                {
+                    dr[kvp.Key] = kvp.Value;        // Add values to columns
+                }
+                dt.Rows.Add(dr);
+            }
+            return dt;
         }
 
     }
